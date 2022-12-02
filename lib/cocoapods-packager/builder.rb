@@ -215,7 +215,7 @@ MAP
       `cp "#{license_file}" .` if Pathname(license_file).exist?
     end
 
-    def copy_resources
+    def copy_resources(platform)
       bundles = Dir.glob("#{@static_sandbox_root}/build/*.bundle")
 
       bundle_names = [@spec, *@spec.recursive_subspecs].flat_map do |spec|
