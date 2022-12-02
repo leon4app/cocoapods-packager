@@ -1,6 +1,7 @@
 module Pod
   class Builder
-    def initialize(source_dir, static_sandbox_root, dynamic_sandbox_root, public_headers_root, spec, embedded, mangle, dynamic, config, bundle_identifier, exclude_deps)
+    def initialize(static_installer, source_dir, static_sandbox_root, dynamic_sandbox_root, public_headers_root, spec, embedded, mangle, dynamic, config, bundle_identifier, exclude_deps)
+      @static_installer = static_installer
       @source_dir = source_dir
       @static_sandbox_root = static_sandbox_root
       @dynamic_sandbox_root = dynamic_sandbox_root
@@ -214,14 +215,36 @@ MAP
       `cp "#{license_file}" .` if Pathname(license_file).exist?
     end
 
-    def copy_resources(platform)
+    def copy_resources
       bundles = Dir.glob("#{@static_sandbox_root}/build/*.bundle")
+
+      bundle_names = [@spec, *@spec.recursive_subspecs].flat_map do |spec|
+        consumer = spec.consumer(platform)
+        consumer.resource_bundles.keys +
+        consumer.resources.map do |r| 
+          File.basename(r, '.bundle') if File.extname(r) == 'bundle'
+        end
+      end.compact.uniq
+
+      bundles.select! do |bundle|
+        bundle_name = File.basename(bundle, '.bundle')
+        bundle_names.include?(bundle_name)
+      end
+
+      bundle_files = bundles.join(' ')
+
       if @dynamic
         resources_path = "ios/#{@spec.name}.framework"
-        `cp -rp #{@static_sandbox_root}/build/*.bundle #{resources_path} 2>&1`
+        `cp -rp #{bundle_files} #{resources_path} 2>&1`
       else
-        `cp -rp #{@static_sandbox_root}/build/*.bundle #{@fwk.resources_path} 2>&1`
-        resources = expand_paths(@spec.consumer(platform).resources)
+        `cp -rp #{bundle_files} #{@fwk.resources_path} 2>&1`
+        dependency_names = @static_installer.podfile.dependencies.map(&:name)
+        resources = [@spec, *@spec.recursive_subspecs].flat_map do |spec|
+          if (dependency_names & [spec.name, @spec.name]).any?
+            expand_paths(spec.consumer(platform).resources)
+          end
+        end.compact.uniq
+
         if resources.count == 0 && bundles.count == 0
           @fwk.delete_resources
           return

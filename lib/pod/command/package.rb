@@ -84,7 +84,7 @@ module Pod
         end
 
         begin
-          perform_build(platform, static_sandbox, dynamic_sandbox)
+          perform_build(platform, static_sandbox, dynamic_sandbox, static_installer)
 
         ensure # in case the build fails; see Builder#xcodebuild.
           Pathname.new(config.sandbox_root).rmtree
@@ -131,7 +131,7 @@ module Pod
         [target_dir, work_dir]
       end
 
-      def perform_build(platform, static_sandbox, dynamic_sandbox)
+      def perform_build(platform, static_sandbox, dynamic_sandbox, static_installer)
         static_sandbox_root = config.sandbox_root.to_s
 
         if @dynamic
@@ -140,6 +140,7 @@ module Pod
         end
 
         builder = Pod::Builder.new(
+          static_installer,
           @source_dir,
           static_sandbox_root,
           dynamic_sandbox_root,
